@@ -1,9 +1,13 @@
 """Authoritative schema for batch accounts; source values live in the workbook."""
 from pydantic import Field as PydanticField
+from pydantic.dataclasses import dataclass
 
 from .columns import Field
 from .models import Model
 
+@dataclass(slots=True)
+class Address:
+    
 
 class CanonicalAccount(Model):
     source_row_number: int = PydanticField(ge=2)

@@ -12,6 +12,16 @@ Open **http://localhost:8080**; API documentation is at **http://localhost:8000/
 
 Compose runs the frontend, API, and a separate Python worker. SQLite and job artifacts share the **job-data** volume at `/data/jobs`. Stopping containers with `docker compose down` preserves accepted jobs; removing the volume deletes the database and workbooks.
 
+### Troubleshooting host ports (Docker Desktop / WSL)
+
+If startup fails with `ports are not available` or `/forwards/expose returned unexpected status: 500`, check for another application listening on the published host port. With Docker Desktop on Windows, the conflicting listener can be on **Windows**, even when WSL's `ss` reports that the port is free. Check Windows listeners with PowerShell's `Get-NetTCPConnection -State Listen` and identify the owning process with `Get-Process -Id <OwningProcess>`.
+
+Set `BACKEND_PORT=8001` in `.env` when port 8000 is occupied, then rerun `docker compose up --build --wait`. The API documentation will move to **http://localhost:8001/docs**. If port 8080 is occupied, change `FRONTEND_PORT` as well and open that port in the browser. These settings change only the published host ports: Nginx must still connect to `backend:8000`, and the browser still uses same-origin `/api` requests. Keep the localhost bindings rather than exposing the application on every network interface.
+
+### Checking connectivity
+
+Check `docker compose ps` and `docker compose logs --tail=100` after startup. Through the frontend port, `/api/health` checks the Nginx-to-API connection and `/api/ready` additionally checks storage and the worker heartbeat. Run `python3 scripts/smoke.py` to verify upload, processing, and download; pass `http://localhost:<FRONTEND_PORT>` as an argument if the frontend port was changed.
+
 ## Import a workbook
 
 1. Choose an `.xlsx` file and worksheet. Row 1 contains headers.
