@@ -1,12 +1,13 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import type ExcelJS from 'exceljs';
-import { getSchema, matchColumns, processImport } from './api';
+import { createJob, getSchema, matchColumns } from './api';
+import { JobProgress } from './JobProgress';
 import { parseSheet, readWorkbook } from './excel';
 import { mappingIssues, needsApproval, suggestedMapping } from './mapping';
 import { useLatestTask } from './useLatestTask';
-import type { DataRow, Mapping, ParsedSheet, ProcessResult, Schema, SourceColumn, Suggestion } from './types';
+import type { BatchJob, DataRow, Mapping, ParsedSheet, Schema, SourceColumn, Suggestion } from './types';
 
-interface Upload { name: string; workbook: ExcelJS.Workbook }
+interface Upload { name: string; file: File; workbook: ExcelJS.Workbook }
 
 function Table({ columns, rows }: { columns: SourceColumn[]; rows: DataRow[] }) {
   return <div className="table-wrap"><table>
@@ -22,7 +23,7 @@ export function ImportScreen({ schema }: { schema: Schema }) {
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
   const [confirmed, setConfirmed] = useState<string[]>([]);
-  const [result, setResult] = useState<ProcessResult | null>(null);
+  const [result, setResult] = useState<BatchJob | null>(null);
   const { busy, error, run, clearError } = useLatestTask();
 
   function resetSheet() {
@@ -50,7 +51,7 @@ export function ImportScreen({ schema }: { schema: Schema }) {
     resetSheet();
     void run(async (commit) => {
       const workbook = await readWorkbook(file, schema.settings.max_file_bytes);
-      const source = { name: file.name, workbook };
+      const source = { name: file.name, file, workbook };
       const id = workbook.worksheets[0].id;
       commit(() => { setUpload(source); setSheetId(id); });
       await prepare(source, id, commit);
@@ -76,7 +77,6 @@ export function ImportScreen({ schema }: { schema: Schema }) {
   }
 
   const issues = suggestions === null ? [] : mappingIssues(schema, suggestions, mapping, confirmed);
-  const destinationColumns = schema.fields.map((field) => ({ id: field.key, label: field.label }));
 
   return <>
     <p>Import an .xlsx workbook, review its columns, then process the complete worksheet.</p>
@@ -122,18 +122,12 @@ export function ImportScreen({ schema }: { schema: Schema }) {
       <button className="primary" disabled={busy || issues.length > 0} onClick={() => {
         setResult(null);
         void run(async (commit) => {
-          const response = await processImport({ ...parsed!, mapping, confirmedFields: confirmed }, schema.settings.max_request_bytes);
+          const response = await createJob(upload!.file, upload!.workbook.getWorksheet(sheetId)!.name, mapping, confirmed);
           commit(() => setResult(response));
         });
       }}>Process data</button>
     </>}
-    {result !== null && <section className="preview-section">
-      <h2>Processing complete</h2>
-      <p role="status">Processed {result.rowsProcessed.toLocaleString()} of {result.rowsReceived.toLocaleString()} imported rows.</p>
-      <p>{result.mappedFields.length} fields mapped; {result.unmappedFields.length} fields unmapped.</p>
-      <ul>{schema.fields.map((field) => <li key={field.key}>{field.label}: {result.nonEmptyCounts[field.key].toLocaleString()} nonempty values</li>)}</ul>
-      <h3>Processed data preview</h3><Table columns={destinationColumns} rows={result.previewRows} />
-    </section>}
+    {result !== null && <JobProgress key={result.job_id} initial={result} />}
   </>;
 }
 

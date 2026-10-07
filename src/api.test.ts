@@ -28,6 +28,7 @@ describe('API', () => {
 
   it.each([
     [response({ detail: 'Confirm email' }, 422), 'Confirm email'],
+    [response({ error: { code: 'INVALID_REQUEST', message: 'Invalid job mapping' } }, 422), 'Invalid job mapping'],
     [response({ detail: [{ msg: 'invalid' }] }, 422), 'request failed (422)'],
     [new Response('<html>too large</html>', { status: 413 }), 'unreadable response (413)'],
   ])('reports API and unreadable proxy errors', async (reply, message) => {

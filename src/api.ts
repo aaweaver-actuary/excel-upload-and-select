@@ -1,4 +1,4 @@
-import type { ProcessRequest, ProcessResult, Schema, SourceColumn, Suggestion } from './types';
+import type { BatchJob, Mapping, ProcessRequest, ProcessResult, Schema, SourceColumn, Suggestion } from './types';
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
@@ -12,7 +12,7 @@ async function readResponse<T>(response: Response): Promise<T> {
     throw new Error(`The server returned an unreadable response (${response.status}).`);
   }
   if (!response.ok) {
-    throw new Error(typeof data.detail === 'string' ? data.detail : `The request failed (${response.status}). Check your import and try again.`);
+    throw new Error(typeof data.error?.message === 'string' ? data.error.message : typeof data.detail === 'string' ? data.detail : `The request failed (${response.status}). Check your import and try again.`);
   }
   return data as T;
 }
@@ -37,4 +37,15 @@ export function matchColumns(columns: SourceColumn[], maxBytes: number): Promise
 
 export function processImport(payload: ProcessRequest, maxBytes: number): Promise<ProcessResult> {
   return post('process', payload, maxBytes);
+}
+
+export function createJob(file: File, sheetName: string, mapping: Mapping, confirmedFields: string[]): Promise<BatchJob> {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('metadata', JSON.stringify({ sheet_name: sheetName, mapping, confirmedFields }));
+  return fetch('/api/v1/jobs', { method: 'POST', body }).then(readResponse<BatchJob>);
+}
+
+export function getJob(jobId: string): Promise<BatchJob> {
+  return fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}`).then(readResponse<BatchJob>);
 }

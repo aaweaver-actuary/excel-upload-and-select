@@ -5,7 +5,7 @@ import type { MockInstance } from 'vitest';
 import type ExcelJS from 'exceljs';
 import App, { ImportScreen } from './App';
 import * as excel from './excel';
-import { deferred, exact, fuzzy, response, result, schema, suggestions, workbook } from './test/fixtures';
+import { completedJob, deferred, exact, fuzzy, response, schema, suggestions, workbook } from './test/fixtures';
 import type { Schema, Suggestion } from './types';
 
 let fetch: ReturnType<typeof vi.fn>;
@@ -23,7 +23,7 @@ function choose(name = 'contacts.xlsx') {
 
 async function start(matches: Suggestion[] = exact, book: ExcelJS.Workbook = workbook(), config: Schema = schema) {
   read.mockResolvedValue(book);
-  fetch.mockResolvedValueOnce(response(config)).mockResolvedValueOnce(response({ suggestions: matches })).mockImplementation(() => Promise.resolve(response(result)));
+  fetch.mockResolvedValueOnce(response(config)).mockResolvedValueOnce(response({ suggestions: matches })).mockImplementation(() => Promise.resolve(response(completedJob)));
   render(<App />);
   await screen.findByLabelText('Choose Excel file');
   choose();
@@ -51,16 +51,18 @@ describe('import interface', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Process data' }));
     expect(screen.getByRole('button', { name: 'Process data' })).toBeDisabled();
     expect(screen.getByLabelText('First Name')).toBeDisabled();
-    const payload = JSON.parse(fetch.mock.calls[2][1].body);
-    expect(payload.rows).toHaveLength(12);
-    expect(payload.rows[11].A).toBe(' Person 11 ');
+    const form = fetch.mock.calls[2][1].body as FormData;
+    const payload = JSON.parse(form.get('metadata') as string);
+    expect(fetch.mock.calls[2][0]).toBe('/api/v1/jobs');
+    expect((form.get('file') as File).name).toBe('contacts.xlsx');
+    expect(payload.sheet_name).toBe('Contacts');
     expect(payload.confirmedFields).toEqual([]);
-    await act(async () => pending.resolve(response(result)));
-    expect(await screen.findByRole('heading', { name: 'Processing complete' })).toBeInTheDocument();
-    expect(screen.getByText('Processed 12 of 12 imported rows.')).toBeInTheDocument();
-    expect(screen.getByText('First Name: 12 nonempty values')).toBeInTheDocument();
+    await act(async () => pending.resolve(response(completedJob)));
+    expect(await screen.findByRole('heading', { name: 'Batch processing' })).toBeInTheDocument();
+    expect(screen.getByText('12 of 12 rows processed; 0 scored; 12 need review; 0 invalid.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download result workbook' })).toHaveAttribute('href', '/api/v1/jobs/job-1/result');
     await userEvent.selectOptions(screen.getByLabelText('First Name'), 'B');
-    expect(screen.queryByText('Processing complete')).not.toBeInTheDocument();
+    expect(screen.queryByText('Batch processing')).not.toBeInTheDocument();
   });
 
   it('requires fuzzy approval and sends the approved field explicitly', async () => {
@@ -69,8 +71,8 @@ describe('import interface', () => {
     expect(screen.getByRole('button', { name: 'Process data' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Approve Email mapping' }));
     await userEvent.click(screen.getByRole('button', { name: 'Process data' }));
-    expect(await screen.findByText('Processing complete')).toBeInTheDocument();
-    expect(JSON.parse(fetch.mock.calls[2][1].body).confirmedFields).toEqual(['email']);
+    expect(await screen.findByText('Batch processing')).toBeInTheDocument();
+    expect(JSON.parse(fetch.mock.calls[2][1].body.get('metadata')).confirmedFields).toEqual(['email']);
   });
 
   it('lets a user skip fuzzy suggestions and retry processing failures', async () => {
@@ -83,7 +85,7 @@ describe('import interface', () => {
     await userEvent.selectOptions(screen.getByLabelText('Email'), 'B');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Process data' }));
-    expect(await screen.findByText('Processing complete')).toBeInTheDocument();
+    expect(await screen.findByText('Batch processing')).toBeInTheDocument();
   });
 
   it('handles ambiguous, required, unmapped, and conflicting fields', async () => {
@@ -101,6 +103,14 @@ describe('import interface', () => {
     expect(screen.getByRole('button', { name: 'Process data' })).toBeDisabled();
     await userEvent.selectOptions(screen.getByLabelText('Email'), 'B');
     expect(screen.getByRole('button', { name: 'Process data' })).toBeEnabled();
+  });
+
+  it('renders a blank submitted cell in the preview', async () => {
+    const book = workbook(0);
+    book.worksheets[0].addRow(['Name', null]);
+    await start(exact, book);
+    expect(screen.getByRole('cell', { name: 'Name' })).toBeInTheDocument();
+    expect(screen.getAllByRole('cell')[1]).toBeEmptyDOMElement();
   });
 
   it('retries failed matching without re-uploading the workbook', async () => {
@@ -124,8 +134,8 @@ describe('import interface', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Skip Email mapping' }));
     expect(screen.getByRole('button', { name: 'Process data' })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: 'Process data' }));
-    await screen.findByText('Processing complete');
-    expect(JSON.parse(fetch.mock.calls[2][1].body).confirmedFields).toEqual(['email']);
+    await screen.findByText('Batch processing');
+    expect(JSON.parse(fetch.mock.calls[2][1].body.get('metadata')).confirmedFields).toEqual(['email']);
   });
 
   it('reports unreadable files and ignores canceled selections', async () => {
@@ -158,12 +168,12 @@ describe('import interface', () => {
     book.addWorksheet('Second').addRows([['Email'], ['second@example.com']]);
     await start(exact, book);
     await userEvent.click(screen.getByRole('button', { name: 'Process data' }));
-    await screen.findByText('Processing complete');
+    await screen.findByText('Batch processing');
     fetch.mockResolvedValueOnce(response({ suggestions: suggestions([{ fieldKey: 'email', matchType: 'exact', columnId: 'A', score: 100 }]) }));
     await userEvent.selectOptions(screen.getByLabelText('Worksheet'), '2');
     await waitFor(() => expect(screen.getByLabelText('Email')).toHaveValue('A'));
     expect(screen.getByLabelText('First Name')).toHaveValue('');
-    expect(screen.queryByText('Processing complete')).not.toBeInTheDocument();
+    expect(screen.queryByText('Batch processing')).not.toBeInTheDocument();
   });
 
   it('ignores stale matching results after a newer file is selected', async () => {

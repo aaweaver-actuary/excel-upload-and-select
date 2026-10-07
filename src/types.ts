@@ -31,3 +31,14 @@ export interface ProcessResult {
   nonEmptyCounts: Record<string, number>;
   previewRows: DataRow[];
 }
+export interface BatchJob {
+  job_id: string;
+  status: 'queued' | 'running' | 'completed' | 'completed_with_issues' | 'failed';
+  stage?: string | null;
+  total_rows?: number;
+  processed_rows?: number;
+  scored_rows?: number;
+  needs_review_rows?: number;
+  invalid_rows?: number;
+  error_message?: string | null;
+}

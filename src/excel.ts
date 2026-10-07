@@ -45,10 +45,11 @@ export function cellValue(value: ExcelJS.CellValue, address: string): CellValue 
     if ('hyperlink' in value) return value.text;
     if ('formula' in value || 'sharedFormula' in value) {
       if (value.result !== undefined) return cellValue(value.result, address);
-      throw new Error(`Cell ${address} has a formula without a cached result. Recalculate and save the workbook in Excel.`);
+      return String('formula' in value ? value.formula : value.sharedFormula);
     }
   }
-  throw new Error(`Cell ${address} contains an unsupported value or Excel error. Correct it before importing.`);
+  if (typeof value === 'object' && 'error' in value) return value.error;
+  throw new Error(`Cell ${address} contains an unsupported value. Correct it before importing.`);
 }
 
 export function parseSheet(workbook: ExcelJS.Workbook, sheetId: number, maxRows: number): ParsedSheet {
@@ -62,15 +63,17 @@ export function parseSheet(workbook: ExcelJS.Workbook, sheetId: number, maxRows:
     throw new Error('The selected worksheet has no headers in row 1. Choose another worksheet or add headers.');
   }
   const rows: DataRow[] = [];
-  sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
+  let lastSourceRow = 1;
+  sheet.eachRow((_row, number) => { lastSourceRow = number; });
+  for (let rowNumber = 2; rowNumber <= lastSourceRow; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
     const data = Object.fromEntries(columns.map((column, index) => {
       const cell = row.getCell(index + 1);
       return [column.id, cellValue(cell.value, cell.address)];
     }));
-    if (Object.values(data).some((value) => value !== null && value !== '')) rows.push(data);
+    rows.push(data);
     if (rows.length > maxRows) throw new Error(`Imports are limited to ${maxRows.toLocaleString()} rows. Choose a smaller worksheet.`);
-  });
+  }
   if (!rows.length) throw new Error('The selected worksheet has no data rows.');
   return { columns, rows };
 }

@@ -22,7 +22,16 @@ describe('Excel parsing', () => {
     book.worksheets[0].addRow(['', null, '', null]);
     const parsed = parseSheet(book, 1, 2);
     expect(parsed.columns).toEqual([{ id: 'A', label: 'Email' }, { id: 'B', label: '' }, { id: 'C', label: 'Email' }, { id: 'D', label: '42' }]);
-    expect(parsed.rows).toEqual([{ A: 'one', B: false, C: 'two', D: 0 }]);
+    expect(parsed.rows).toEqual([{ A: 'one', B: false, C: 'two', D: 0 }, { A: '', B: null, C: '', D: null }]);
+  });
+
+  it('preserves interior empty rows and ignores trailing formatting', () => {
+    const book = workbook(0);
+    const sheet = book.worksheets[0];
+    sheet.addRow(['One']);
+    sheet.getRow(4).getCell(1).value = 'Two';
+    sheet.getRow(6).getCell(1).font = { bold: true };
+    expect(parseSheet(book, 1, 3).rows).toEqual([{ A: 'One', B: null }, { A: null, B: null }, { A: 'Two', B: null }]);
   });
 
   it.each([
@@ -35,12 +44,14 @@ describe('Excel parsing', () => {
     expect(cellValue(value as ExcelJS.CellValue, 'A2')).toEqual(expected);
   });
 
-  it.each([Number.POSITIVE_INFINITY, { error: '#N/A' }, {}])('rejects unsupported cells with their location', (value) => {
+  it.each([Number.POSITIVE_INFINITY, {}])('rejects unsupported cells with their location', (value) => {
     expect(() => cellValue(value as ExcelJS.CellValue, 'B3')).toThrow('Cell B3');
   });
 
-  it('requires cached formula results', () => {
-    expect(() => cellValue({ formula: '1+1' }, 'C4')).toThrow('Recalculate and save');
+  it('previews uncached formulas and errors for backend row diagnostics', () => {
+    expect(cellValue({ formula: '1+1' }, 'C4')).toBe('1+1');
+    expect(cellValue({ sharedFormula: 'C4' }, 'C5')).toBe('C4');
+    expect(cellValue({ error: '#N/A' }, 'C6')).toBe('#N/A');
   });
 
   it('rejects unsupported formats, oversized files, and corrupt workbooks', async () => {

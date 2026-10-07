@@ -11,7 +11,7 @@ from app.main import RequestSizeLimit, app, create_app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(create_app(FIELDS))
 
 
 def test_health_schema_and_documentation(client):

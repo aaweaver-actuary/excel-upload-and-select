@@ -5,12 +5,43 @@ services:
       target: production
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    environment: &batch-environment
+      JOB_ARTIFACT_DIRECTORY: /data/jobs
+      PIPELINE_VERSION: ${PIPELINE_VERSION:-foundation-1}
+      MAX_FILE_BYTES: ${MAX_FILE_BYTES:-20971520}
+      MAX_ROWS: ${MAX_ROWS:-50000}
+      MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-67108864}
+      MAX_EXPANDED_BYTES: ${MAX_EXPANDED_BYTES:-209715200}
+      MAX_WORKBOOK_CELLS: ${MAX_WORKBOOK_CELLS:-1000000}
+      WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-1}
+      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+      WORKER_STALE_SECONDS: ${WORKER_STALE_SECONDS:-30}
+      NAICS_MAX_CONCURRENCY: ${NAICS_MAX_CONCURRENCY:-8}
+      NAICS_REQUEST_TIMEOUT_SECONDS: ${NAICS_REQUEST_TIMEOUT_SECONDS:-10}
+      NAICS_MAX_RETRIES: ${NAICS_MAX_RETRIES:-2}
+      NAICS_RETRY_BASE_SECONDS: ${NAICS_RETRY_BASE_SECONDS:-0.5}
+      NAICS_CACHE_TTL: ${NAICS_CACHE_TTL:-86400}
+      ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-0}
+    volumes:
+      - job-data:/data/jobs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
       interval: 5s
       timeout: 3s
       start_period: 10s
       retries: 10
+  worker:
+    build:
+      context: ./backend
+      target: production
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    environment: *batch-environment
+    volumes:
+      - job-data:/data/jobs
+    depends_on:
+      backend:
+        condition: service_healthy
   frontend:
     build:
       context: .
@@ -36,3 +67,5 @@ services:
     build:
       context: ./backend
       target: test
+volumes:
+  job-data:

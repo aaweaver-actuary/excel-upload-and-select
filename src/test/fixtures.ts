@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { ProcessResult, Schema, Suggestion } from '../types';
+import type { BatchJob, ProcessResult, Schema, Suggestion } from '../types';
 
 export const schema: Schema = {
   fields: ['firstName', 'lastName', 'email', 'phone', 'company', 'state'].map((key, index) => ({
@@ -34,6 +34,8 @@ export const result: ProcessResult = {
   nonEmptyCounts: { firstName: 12, lastName: 0, email: 0, phone: 0, company: 0, state: 0 },
   previewRows: [{ firstName: 'Person 0', lastName: null, email: null, phone: null, company: null, state: null }],
 };
+export const completedJob: BatchJob = { job_id: 'job-1', status: 'completed_with_issues', total_rows: 12,
+  processed_rows: 12, scored_rows: 0, needs_review_rows: 12, invalid_rows: 0 };
 
 export function response(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
