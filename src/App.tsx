@@ -1,5 +1,5 @@
 import { ChangeEvent, useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export type CanonicalField =
   | 'firstName'
@@ -72,30 +72,36 @@ export function parseWorkbook(file: File): Promise<{ headers: string[]; previewR
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = event.target?.result;
-        if (!data) {
+        if (!data || !(data instanceof ArrayBuffer)) {
           reject(new Error('No file data was read.'));
           return;
         }
 
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '', raw: false });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(data);
 
-        const headers = Object.keys(json[0] ?? {});
-        const previewRows = json.slice(0, 10).map((row) => {
+        const firstSheet = workbook.worksheets[0];
+        if (!firstSheet) {
+          reject(new Error('The spreadsheet does not contain any worksheets.'));
+          return;
+        }
+
+        const rows = firstSheet.getSheetValues() as any[];
+        const headerRow = Array.isArray(rows[1]) ? rows[1] : [];
+        const headers = headerRow.filter((value: unknown): value is string => typeof value === 'string');
+        const previewRows = rows.slice(2, 12).filter(Array.isArray).map((row: any[]) => {
           const normalizedRow: ExcelRow = {};
-          Object.entries(row).forEach(([key, value]) => {
-            const normalizedValue = value === undefined ? null : typeof value === 'object' ? JSON.stringify(value) : value;
-            normalizedRow[key] = normalizedValue as string | number | boolean | null;
+          headers.forEach((header: string, index: number) => {
+            const value = row[index + 1];
+            normalizedRow[header] = value === undefined || value === null ? null : typeof value === 'object' ? JSON.stringify(value) : value;
           });
           return normalizedRow;
         });
 
-        resolve({ headers, previewRows, worksheetName: firstSheetName });
+        resolve({ headers, previewRows, worksheetName: firstSheet.name });
       } catch (error) {
         reject(error);
       }
