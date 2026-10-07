@@ -27,6 +27,14 @@ select {
   font: inherit;
 }
 
+button { padding: 10px 16px; border: 1px solid #94a3b8; border-radius: 8px; background: white; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+.hint { color: #475569; font-size: 0.9rem; }
+.error { color: #991b1b; padding: 12px; background: #fef2f2; border-radius: 8px; }
+.mapping-field label { display: flex; flex-direction: column; gap: 8px; }
+.file-meta select { margin-left: 8px; padding: 6px; }
+
 #root {
   width: 100%;
 }

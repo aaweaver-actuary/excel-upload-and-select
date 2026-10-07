@@ -1,0 +1,13 @@
+.git
+node_modules
+dist
+coverage
+.venv
+.cache
+backend
+**/__pycache__
+**/.pytest_cache
+**/.coverage
+**/coverage.xml
+*.tsbuildinfo
+.env
