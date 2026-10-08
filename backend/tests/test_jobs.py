@@ -89,6 +89,18 @@ def test_six_row_acceptance_and_download(setup):
         assert [row[3] for row in values[1:]] == list(range(2, 8))
         assert [row[4] for row in values[1:]] == ["scored", "scored", "scored_with_warnings", "needs_review", "invalid", "scored"]
         assert values[3][7] == "bad" and values[3][8] == "541330" and values[3][9] == "third_party"
+        page = client.get(f"/api/v1/jobs/{job_id}/rows").json()
+        assert page["total"] == 6 and page["offset"] == 0 and page["limit"] == 50
+        assert [row["source_row_number"] for row in page["rows"]] == list(range(2, 8))
+        assert [row["status"] for row in page["rows"]] == [row[4] for row in values[1:]]
+        for row, excel_row in zip(page["rows"], values[1:]):
+            assert row["naics"]["input_value"] == excel_row[7]
+            assert row["naics"]["final_value"] == excel_row[8]
+            assert row["scores"]["Score A"]["value"] == excel_row[13]
+            assert row["canonical_account"]["postal_code"] == ("00123" if row["source_row_number"] != 6 else None)
+        with repo.connection() as db:
+            saved = [json.loads(row[0]) for row in db.execute("SELECT result FROM batch_job_rows WHERE job_id=? ORDER BY source_row_number", (job_id,))]
+        assert page["rows"] == saved
         assert len(provider.calls) == 3 and provider.calls.count("Enriched") == 1
         assert "Run Summary" in result.sheetnames
         assert "fake" in json.dumps(status["versions"])

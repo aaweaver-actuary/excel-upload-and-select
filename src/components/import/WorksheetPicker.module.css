@@ -1,0 +1,12 @@
+.metadata {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-16);
+  color: var(--color-metadata);
+}
+
+.select {
+  margin-left: var(--space-8);
+  padding: var(--space-6);
+}

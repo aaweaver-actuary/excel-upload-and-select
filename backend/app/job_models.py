@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import Field, FiniteFloat
 
 from .models import Model
+from .accounts import CanonicalAccount
 
 JobStatus = Literal["queued", "running", "completed", "completed_with_issues", "failed"]
 RowStatus = Literal["scored", "scored_with_warnings", "needs_review", "invalid"]
@@ -39,6 +40,7 @@ class RowResult(Model):
     issues: list[str]
     naics: NaicsResolution
     scores: dict[str, ScoreResult] = Field(default_factory=dict)
+    canonical_account: CanonicalAccount | None = None
 
 
 class ApplicationError(Exception):

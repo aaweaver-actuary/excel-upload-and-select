@@ -1,0 +1,19 @@
+.element {
+  font: inherit;
+  padding: var(--space-10) var(--space-16);
+  border: 1px solid var(--color-button-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.element:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--color-primary);
+  color: var(--color-surface);
+  border-color: var(--color-primary);
+}

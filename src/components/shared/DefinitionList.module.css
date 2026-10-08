@@ -1,0 +1,20 @@
+.list {
+  min-width: var(--details-min-width);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+  padding: var(--space-4) 0;
+}
+
+.term {
+  font-weight: var(--weight-emphasis);
+  text-transform: capitalize;
+}
+
+.value {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

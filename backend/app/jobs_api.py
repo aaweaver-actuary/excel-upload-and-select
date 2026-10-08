@@ -3,12 +3,12 @@ from pathlib import Path
 import sqlite3
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from starlette.responses import FileResponse, JSONResponse
 
-from .job_models import ApplicationError, JobMetadata
+from .job_models import ApplicationError, JobMetadata, RowStatus
 from .pipeline import Pipeline
 from .workbooks import read_workbook, validate_mapping
 
@@ -60,6 +60,15 @@ def install_jobs(app, repository, artifacts, settings):
         return {"job_id": job["id"], **{key: job[key] for key in (
             "status", "stage", "total_rows", "processed_rows", "scored_rows", "needs_review_rows", "invalid_rows",
             "created_at", "started_at", "finished_at", "error_code", "error_message", "versions", "metrics")}}
+
+    @router.get("/{job_id}/rows")
+    def get_rows(job_id: UUID, offset: int = Query(default=0, ge=0),
+                 limit: int = Query(default=50, ge=1, le=200), status: RowStatus | None = None):
+        job = repository.get(str(job_id))
+        if job["status"] not in {"completed", "completed_with_issues"}:
+            raise ApplicationError("JOB_NOT_READY", "The result is not available.", 409)
+        total, rows = repository.results(str(job_id), offset, limit, status)
+        return {"job_id": str(job_id), "offset": offset, "limit": limit, "total": total, "rows": rows}
 
     @router.get("/{job_id}/result")
     def get_result(job_id: UUID):

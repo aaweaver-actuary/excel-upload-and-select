@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { JobProgress } from './JobProgress';
+import { JobProgress } from './components/jobs/JobProgress';
 import { completedJob, deferred, response } from './test/fixtures';
 
 let fetch: ReturnType<typeof vi.fn>;
@@ -10,7 +10,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('polls queued and running jobs until a terminal result is downloadable', async () => {
   fetch.mockResolvedValueOnce(response({ job_id: 'id', status: 'queued', total_rows: 12 }))
     .mockResolvedValueOnce(response({ job_id: 'id', status: 'running', stage: 'enrichment', total_rows: 12 }))
-    .mockResolvedValueOnce(response({ ...completedJob, status: 'completed' }));
+    .mockResolvedValueOnce(response({ ...completedJob, status: 'completed' })).mockResolvedValueOnce(response({ total: 0, rows: [], limit: 50 }));
   await act(async () => { render(<JobProgress initial={{ job_id: 'id', status: 'queued' }} />); });
   expect(screen.getByText(/0 of 12 rows processed/)).toBeInTheDocument();
   await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
@@ -18,7 +18,7 @@ it('polls queued and running jobs until a terminal result is downloadable', asyn
   await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
   expect(screen.getByRole('link')).toBeInTheDocument();
   await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(fetch).toHaveBeenCalledTimes(4);
 });
 
 it.each([null, 'The workbook failed.'])('shows terminal failures without a download link', async (message) => {
@@ -29,7 +29,7 @@ it.each([null, 'The workbook failed.'])('shows terminal failures without a downl
 });
 
 it('retries a failed status request without resubmitting a job', async () => {
-  fetch.mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce(response(completedJob));
+  fetch.mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce(response(completedJob)).mockResolvedValueOnce(response({ total: 0, rows: [], limit: 50 }));
   await act(async () => { render(<JobProgress initial={{ job_id: 'id', status: 'queued' }} />); });
   expect(screen.getByRole('alert')).toHaveTextContent('Offline');
   await act(async () => { fireEvent.click(screen.getByText('Retry status check')); });

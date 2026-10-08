@@ -1,0 +1,7 @@
+.element {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-32) var(--space-16);
+}

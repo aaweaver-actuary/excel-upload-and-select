@@ -1,0 +1,10 @@
+.label {
+  display: flex;
+  gap: var(--space-12);
+  align-items: center;
+  margin: var(--space-16) 0;
+}
+
+.select {
+  padding: var(--space-6);
+}

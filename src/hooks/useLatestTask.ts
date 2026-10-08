@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { errorMessage } from './api';
+import { errorMessage } from '../api';
 
 type Commit = (action: () => void) => void;
 

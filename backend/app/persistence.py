@@ -171,6 +171,18 @@ class JobRepository:
                 ON CONFLICT(job_id,source_row_number) DO UPDATE SET result=excluded.result,updated_at=excluded.updated_at""",
                 [(job_id, row.source_row_number, row.model_dump_json(), timestamp()) for row in results])
 
+    def results(self, job_id, offset, limit, status=None):
+        query = "FROM batch_job_rows WHERE job_id=? AND result IS NOT NULL"
+        values = [job_id]
+        if status is not None:
+            query += " AND json_extract(result, '$.status')=?"
+            values.append(status)
+        with self.connection() as db:
+            total = db.execute("SELECT COUNT(*) " + query, values).fetchone()[0]
+            rows = db.execute("SELECT result " + query + " ORDER BY source_row_number LIMIT ? OFFSET ?",
+                              [*values, limit, offset]).fetchall()
+        return total, [RowResult.model_validate_json(row["result"]) for row in rows]
+
     def cache_get(self, key):
         with self.connection() as db:
             row = db.execute("SELECT result FROM enrichment_cache WHERE key=? AND expires_at>?", (key, time.time())).fetchone()

@@ -61,6 +61,16 @@ def main(base):
         time.sleep(0.5)
     assert job["status"] == "completed_with_issues" and job["total_rows"] == job["processed_rows"] == 12
     assert job["scored_rows"] == 0 and job["needs_review_rows"] == 12
+    status, result_rows = request(base, f"/api/v1/jobs/{job_id}/rows?limit=5&status=needs_review")
+    assert status == 200
+    result_rows = json.loads(result_rows)
+    assert result_rows["total"] == 12 and len(result_rows["rows"]) == 5
+    for number, row in enumerate(result_rows["rows"], 2):
+        assert row["source_row_number"] == number
+        assert row["canonical_account"]["business_name"] == f"Account {number}"
+        assert "SCORING_NOT_CONFIGURED" in row["issues"]
+    status, last_rows = request(base, f"/api/v1/jobs/{job_id}/rows?offset=10&limit=5")
+    assert status == 200 and [row["source_row_number"] for row in json.loads(last_rows)["rows"]] == [12, 13]
     status, result = request(base, f"/api/v1/jobs/{job_id}/result")
     assert status == 200
     namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -70,4 +80,4 @@ def main(base):
         for number, row in enumerate(rows[1:], 2):
             assert row.find("s:c/s:is/s:t", namespace).text == f" Account {number} "
             assert row.findall("s:c", namespace)[1].find("s:v", namespace).text == str(number)
-    print("Compose smoke test passed: upload, durable worker, polling, download, and source row alignment.")
+    print("Compose smoke test passed: upload, durable worker, polling, paginated results, download, and source row alignment.")

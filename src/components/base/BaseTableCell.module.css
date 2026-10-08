@@ -1,0 +1,5 @@
+.element {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-10) var(--space-12);
+  text-align: left;
+}

@@ -1,0 +1,6 @@
+.boxed {
+  color: var(--color-error);
+  padding: var(--space-12);
+  background: var(--color-error-background);
+  border-radius: var(--radius-small);
+}

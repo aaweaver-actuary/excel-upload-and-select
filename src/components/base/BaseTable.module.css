@@ -1,0 +1,5 @@
+.element {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: var(--table-min-width);
+}

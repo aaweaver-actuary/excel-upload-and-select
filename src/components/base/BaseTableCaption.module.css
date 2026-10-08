@@ -1,0 +1,5 @@
+.element {
+  text-align: left;
+  padding: var(--space-10) var(--space-12);
+  font-weight: var(--weight-emphasis);
+}

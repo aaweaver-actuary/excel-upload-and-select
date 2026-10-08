@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type ExcelJS from 'exceljs';
-import App, { ImportScreen } from './App';
+import App from './App';
+import { ImportScreen } from './components/import/ImportScreen';
 import * as excel from './excel';
 import { completedJob, deferred, exact, fuzzy, response, schema, suggestions, workbook } from './test/fixtures';
 import type { Schema, Suggestion } from './types';
@@ -23,7 +24,7 @@ function choose(name = 'contacts.xlsx') {
 
 async function start(matches: Suggestion[] = exact, book: ExcelJS.Workbook = workbook(), config: Schema = schema) {
   read.mockResolvedValue(book);
-  fetch.mockResolvedValueOnce(response(config)).mockResolvedValueOnce(response({ suggestions: matches })).mockImplementation(() => Promise.resolve(response(completedJob)));
+  fetch.mockResolvedValueOnce(response(config)).mockResolvedValueOnce(response({ suggestions: matches })).mockImplementation((url: string) => Promise.resolve(response(url.includes('/rows?') ? { job_id: completedJob.job_id, offset: 0, limit: 50, total: 0, rows: [] } : completedJob)));
   render(<App />);
   await screen.findByLabelText('Choose Excel file');
   choose();

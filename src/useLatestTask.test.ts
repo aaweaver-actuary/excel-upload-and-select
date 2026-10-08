@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useLatestTask } from './useLatestTask';
+import { useLatestTask } from './hooks/useLatestTask';
 import { deferred } from './test/fixtures';
 
 describe('latest task coordination', () => {

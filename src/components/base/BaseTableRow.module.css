@@ -1,0 +1,3 @@
+.element:last-child > td {
+  border-bottom: none;
+}

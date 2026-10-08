@@ -27,7 +27,9 @@ Check `docker compose ps` and `docker compose logs --tail=100` after startup. Th
 1. Choose an `.xlsx` file and worksheet. Row 1 contains headers.
 2. Map Business Name and any optional account/address/NAICS fields. Exact matches are accepted automatically; approve fuzzy mappings or choose a source column explicitly.
 3. Click **Process data**. The browser uploads the original file with mapping metadata; Python independently validates it before accepting a job.
-4. Poll status and download the result workbook when processing completes.
+4. When processing completes, review the results table or download the result workbook. Filter by row status and use Previous/Next to browse 50 rows at a time. Expand a row to inspect normalized inputs, diagnostics, NAICS provenance, and individual scorer outcomes. Processing versions are available alongside the results.
+
+The results view uses persisted backend outcomes. Zero scores remain visible, and missing scores show a dash with their status. Unconfigured scoring and enrichment produce explicit diagnostics; unverified NAICS codes are not presented as validated. Normalized input snapshots are saved for newly processed jobs. Older jobs remain readable, but their normalized inputs are marked unavailable.
 
 The backend preserves rows 2 through the last row containing a source value, including interior empty rows. Blank rows and rows without a usable business name are invalid individually. Trailing formatting-only rows are ignored. Physical Excel row numbers are durable identifiers. Blank and duplicate headers use column-letter IDs, so source values cannot overwrite one another.
 
@@ -70,6 +72,7 @@ Inputs are stored by generated job ID, never by user filenames. Files are writte
 | `POST /api/match-columns` | Existing `{columns: [{id, label}]}` suggestion contract for canonical fields. |
 | `POST /api/v1/jobs` | Multipart `file` plus JSON string `metadata`; returns 202 and job ID. |
 | `GET /api/v1/jobs/{id}` | Status, stage, counters, timestamps, versions, metrics, and sanitized fatal error. |
+| `GET /api/v1/jobs/{id}/rows` | Completed-job JSON results, ordered by physical source row. Query: `offset` (default 0), `limit` (default 50, 1–200), optional `status` matching a row status. Returns `{job_id, offset, limit, total, rows}`; `total` is the filtered count. Each row includes `source_row_number`, `status`, `issues`, `naics`, `scores`, and nullable `canonical_account`. Returns 409 before completion or for failed jobs, 404 for unknown jobs, and 422 for invalid queries. |
 | `GET /api/v1/jobs/{id}/result` | XLSX for completed jobs; 409 when not ready/failed, 404 when unknown. |
 | `POST /api/process` | Retained synchronous JSON contact-preview contract; no persistence or batch enrichment. |
 
@@ -105,6 +108,11 @@ Worker logs are structured JSON with job ID/stage and safe provider timing/outco
 No authentication system existed in the original project. Compose ports remain localhost-bound; deploy within an approved internal access boundary and supply an organizational authentication policy before exposing insured data beyond that boundary.
 
 ## Develop and verify
+
+For UI changes, see the [component editing guide](src/components/README.md).
+Each HTML element type has a base component, named UI components compose those
+bases, and workflow state lives in `src/hooks`. Component styles are adjacent
+CSS Modules; shared visual values are in `src/theme.css`.
 
 Requires Node 24 (or 26+) and Python 3.13+:
 

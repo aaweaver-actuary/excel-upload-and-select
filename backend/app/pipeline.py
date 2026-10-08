@@ -72,7 +72,7 @@ class Pipeline:
                 else:
                     status = "scored_with_warnings" if codes else "scored"
                 results.append(RowResult(source_row_number=number, status=status, issues=list(dict.fromkeys(codes)),
-                                         naics=resolutions[number], scores=scores[number]))
+                                         naics=resolutions[number], scores=scores[number], canonical_account=account))
             self.repository.save_results(job_id, results)
             counts = {status: sum(row.status == status for row in results) for status in ("scored", "scored_with_warnings", "needs_review", "invalid")}
             stage("output")
