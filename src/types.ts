@@ -1,7 +1,15 @@
 export type CellValue = string | number | boolean | null;
 export type DataRow = Record<string, CellValue>;
-export interface SourceColumn { id: string; label: string }
-export interface FieldDefinition { key: string; label: string; aliases: string[]; required: boolean }
+export interface SourceColumn {
+  id: string;
+  label: string;
+}
+export interface FieldDefinition {
+  key: string;
+  label: string;
+  aliases: string[];
+  required: boolean;
+}
 export interface Schema {
   fields: FieldDefinition[];
   settings: {
@@ -15,14 +23,20 @@ export interface Schema {
 }
 export interface Suggestion {
   fieldKey: string;
-  matchType: 'exact' | 'fuzzy' | 'ambiguous' | 'unmatched';
+  matchType: "exact" | "fuzzy" | "ambiguous" | "unmatched";
   columnId: string | null;
   score: number | null;
   candidates: Array<{ columnId: string; score: number }>;
 }
 export type Mapping = Record<string, string | null>;
-export interface ParsedSheet { columns: SourceColumn[]; rows: DataRow[] }
-export interface ProcessRequest extends ParsedSheet { mapping: Mapping; confirmedFields: string[] }
+export interface ParsedSheet {
+  columns: SourceColumn[];
+  rows: DataRow[];
+}
+export interface ProcessRequest extends ParsedSheet {
+  mapping: Mapping;
+  confirmedFields: string[];
+}
 export interface ProcessResult {
   rowsReceived: number;
   rowsProcessed: number;
@@ -33,7 +47,12 @@ export interface ProcessResult {
 }
 export interface BatchJob {
   job_id: string;
-  status: 'queued' | 'running' | 'completed' | 'completed_with_issues' | 'failed';
+  status:
+    | "queued"
+    | "running"
+    | "completed"
+    | "completed_with_issues"
+    | "failed";
   stage?: string | null;
   total_rows?: number;
   processed_rows?: number;
@@ -51,7 +70,11 @@ export interface BatchJob {
   };
 }
 
-export type RowStatus = 'scored' | 'scored_with_warnings' | 'needs_review' | 'invalid';
+export type RowStatus =
+  | "scored"
+  | "scored_with_warnings"
+  | "needs_review"
+  | "invalid";
 export interface CanonicalAccount {
   source_row_number: number;
   account_id: string | null;
@@ -71,7 +94,7 @@ export interface RowResult {
   naics: {
     input_value: CellValue;
     final_value: string | null;
-    source: 'submitted' | 'third_party' | 'none';
+    source: "submitted" | "third_party" | "none";
     status: string;
     provider: string | null;
     provider_record_id: string | null;
@@ -79,7 +102,10 @@ export interface RowResult {
     retrieved_at: string | null;
     warning_codes: string[];
   };
-  scores: Record<string, { value: number | null; status: string; issues: string[] }>;
+  scores: Record<
+    string,
+    { value: number | null; status: string; issues: string[] }
+  >;
 }
 export interface JobRows {
   job_id: string;

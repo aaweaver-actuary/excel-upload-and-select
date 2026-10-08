@@ -1,6 +1,6 @@
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef } from "react";
 
-export type BaseStrongProps = ComponentPropsWithoutRef<'strong'>;
+export type BaseStrongProps = ComponentPropsWithoutRef<"strong">;
 
 export function BaseStrong(props: BaseStrongProps) {
   return <strong {...props} />;

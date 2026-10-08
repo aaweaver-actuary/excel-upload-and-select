@@ -1,10 +1,16 @@
-import { useState } from 'react';
-import type ExcelJS from 'exceljs';
-import { createJob, matchColumns } from '../api';
-import { parseSheet, readWorkbook } from '../excel';
-import { mappingIssues, suggestedMapping } from '../mapping';
-import type { BatchJob, Mapping, ParsedSheet, Schema, Suggestion } from '../types';
-import { useLatestTask } from './useLatestTask';
+import { useState } from "react";
+import type ExcelJS from "exceljs";
+import { createJob, matchColumns } from "../api";
+import { parseSheet, readWorkbook } from "../excel";
+import { mappingIssues, suggestedMapping } from "../mapping";
+import type {
+  BatchJob,
+  Mapping,
+  ParsedSheet,
+  Schema,
+  Suggestion,
+} from "../types";
+import { useLatestTask } from "./useLatestTask";
 
 interface Upload {
   name: string;
@@ -30,10 +36,17 @@ export function useImport(schema: Schema) {
     setResult(null);
   }
 
-  async function prepare(source: Upload, id: number, commit: (action: () => void) => void) {
+  async function prepare(
+    source: Upload,
+    id: number,
+    commit: (action: () => void) => void,
+  ) {
     const data = parseSheet(source.workbook, id, schema.settings.max_rows);
     commit(() => setParsed(data));
-    const response = await matchColumns(data.columns, schema.settings.max_request_bytes);
+    const response = await matchColumns(
+      data.columns,
+      schema.settings.max_request_bytes,
+    );
     commit(() => {
       setSuggestions(response.suggestions);
       setMapping(suggestedMapping(response.suggestions));
@@ -47,7 +60,10 @@ export function useImport(schema: Schema) {
       const workbook = await readWorkbook(file, schema.settings.max_file_bytes);
       const source = { name: file.name, file, workbook };
       const id = workbook.worksheets[0].id;
-      commit(() => { setUpload(source); setSheetId(id); });
+      commit(() => {
+        setUpload(source);
+        setSheetId(id);
+      });
       await prepare(source, id, commit);
     });
   }
@@ -76,19 +92,47 @@ export function useImport(schema: Schema) {
   function processData() {
     setResult(null);
     void run(async (commit) => {
-      const response = await createJob(upload!.file, upload!.workbook.getWorksheet(sheetId)!.name, mapping, confirmed);
+      const response = await createJob(
+        upload!.file,
+        upload!.workbook.getWorksheet(sheetId)!.name,
+        mapping,
+        confirmed,
+      );
       commit(() => setResult(response));
     });
   }
 
-  const issues = suggestions === null ? [] : mappingIssues(schema, suggestions, mapping, confirmed);
-  const selectedUpload = upload === null ? null : {
-    name: upload.name,
-    worksheets: upload.workbook.worksheets.map(sheet => ({ id: sheet.id, name: sheet.name })),
-  };
+  const issues =
+    suggestions === null
+      ? []
+      : mappingIssues(schema, suggestions, mapping, confirmed);
+  const selectedUpload =
+    upload === null
+      ? null
+      : {
+          name: upload.name,
+          worksheets: upload.workbook.worksheets.map((sheet) => ({
+            id: sheet.id,
+            name: sheet.name,
+          })),
+        };
 
   return {
-    upload: selectedUpload, sheetId, parsed, suggestions, mapping, confirmed, result,
-    busy, error, issues, selectFile, selectSheet, selectMapping, approve, retryMatching, processData,
+    upload: selectedUpload,
+    sheetId,
+    parsed,
+    suggestions,
+    mapping,
+    confirmed,
+    result,
+    busy,
+    error,
+    issues,
+    selectFile,
+    selectSheet,
+    selectMapping,
+    approve,
+    retryMatching,
+    processData,
   };
 }

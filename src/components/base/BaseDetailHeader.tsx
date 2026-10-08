@@ -1,6 +1,6 @@
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef } from "react";
 
-export type BaseDetailHeaderProps = ComponentPropsWithoutRef<'h3'>;
+export type BaseDetailHeaderProps = ComponentPropsWithoutRef<"h3">;
 
 export function BaseDetailHeader(props: BaseDetailHeaderProps) {
   return <h3 {...props} />;
