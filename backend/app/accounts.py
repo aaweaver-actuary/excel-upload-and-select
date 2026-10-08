@@ -7,7 +7,7 @@ from .models import Model
 
 @dataclass(slots=True)
 class Address:
-    
+    pass
 
 class CanonicalAccount(Model):
     source_row_number: int = PydanticField(ge=2)

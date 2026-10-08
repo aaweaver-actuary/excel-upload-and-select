@@ -138,6 +138,7 @@ describe("Excel parsing", () => {
   it("gives a useful workbook error for a non-Error failure", async () => {
     class Reader {
       readAsArrayBuffer() {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- Exercise failures from third-party code that throws non-Error values.
         throw "unexpected";
       }
     }

@@ -48,11 +48,7 @@ export interface ProcessResult {
 export interface BatchJob {
   job_id: string;
   status:
-    | "queued"
-    | "running"
-    | "completed"
-    | "completed_with_issues"
-    | "failed";
+    "queued" | "running" | "completed" | "completed_with_issues" | "failed";
   stage?: string | null;
   total_rows?: number;
   processed_rows?: number;
@@ -71,10 +67,7 @@ export interface BatchJob {
 }
 
 export type RowStatus =
-  | "scored"
-  | "scored_with_warnings"
-  | "needs_review"
-  | "invalid";
+  "scored" | "scored_with_warnings" | "needs_review" | "invalid";
 export interface CanonicalAccount {
   source_row_number: number;
   account_id: string | null;

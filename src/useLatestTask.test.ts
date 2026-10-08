@@ -5,9 +5,11 @@ import { deferred } from "./test/fixtures";
 
 describe("latest task coordination", () => {
   it("commits only the latest operation and clears errors on retry", async () => {
-    const { result } = renderHook(useLatestTask);
+    const { result, rerender } = renderHook(useLatestTask);
+    const initialRun = result.current.run;
     await act(async () =>
       result.current.run(async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- Verify the fallback for operations that throw non-Error values.
         throw null;
       }),
     );
@@ -24,6 +26,8 @@ describe("latest task coordination", () => {
       });
     });
     expect(result.current.busy).toBe(true);
+    rerender();
+    expect(result.current.run).toBe(initialRun);
     await act(async () => result.current.run(async (apply) => apply(commit)));
     await act(async () => {
       old.resolve();
@@ -31,6 +35,7 @@ describe("latest task coordination", () => {
     });
     expect(commit).toHaveBeenCalledTimes(1);
     expect(result.current.busy).toBe(false);
+    expect(result.current.run).toBe(initialRun);
   });
 
   it("does not commit after unmounting", async () => {

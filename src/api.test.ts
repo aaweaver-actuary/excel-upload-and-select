@@ -7,7 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("API", () => {
   it("loads the schema and sends matching and complete processing payloads", async () => {
     const fetch = vi
-      .fn()
+      .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(response(schema))
       .mockResolvedValueOnce(response({ suggestions: [] }))
       .mockResolvedValueOnce(response(result));
@@ -26,7 +26,7 @@ describe("API", () => {
     expect(fetch.mock.calls[0][0]).toBe("/api/schema");
     expect(fetch.mock.calls[1][0]).toBe("/api/match-columns");
     expect(fetch.mock.calls[2][0]).toBe("/api/process");
-    expect(JSON.parse(fetch.mock.calls[2][1].body)).toEqual(payload);
+    expect(JSON.parse(fetch.mock.calls[2][1]?.body as string)).toEqual(payload);
   });
 
   it("counts UTF-8 bytes and allows exactly the configured request limit", async () => {
@@ -56,6 +56,8 @@ describe("API", () => {
       "Invalid job mapping",
     ],
     [response({ detail: [{ msg: "invalid" }] }, 422), "request failed (422)"],
+    [response(null, 422), "request failed (422)"],
+    [response({ error: {} }, 422), "request failed (422)"],
     [
       new Response("<html>too large</html>", { status: 413 }),
       "unreadable response (413)",

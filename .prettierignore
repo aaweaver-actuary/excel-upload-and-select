@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.cache/
+.vite/
+.venv/
+backend/
+package-lock.json
+*.tsbuildinfo

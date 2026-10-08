@@ -45,9 +45,9 @@ export function MappingSection({
           <MappingField
             key={field.key}
             field={field}
-            suggestion={
-              suggestions.find((item) => item.fieldKey === field.key)!
-            }
+            suggestion={suggestions.find(
+              (item) => item.fieldKey === field.key,
+            )!}
             columns={columns}
             selected={mapping[field.key]}
             confirmed={confirmed}

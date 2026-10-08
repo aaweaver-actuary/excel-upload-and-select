@@ -6,27 +6,27 @@ stylesheet to edit how it looks.
 
 ## Where to start
 
-| What you want to change | Where to edit |
-| --- | --- |
-| Page section order | `src/App.tsx` and `import/ImportScreen.tsx` |
-| Page title | `layout/PageHeader.tsx` |
-| Shared page-heading appearance (`h1`) | `base/BaseHeader.module.css` |
-| Shared section-heading appearance (`h2`) | `base/BaseSubheader.module.css` |
-| Detail headings (`h3`) | `base/BaseDetailHeader.tsx`; add an adjacent stylesheet when needed |
-| Shared button appearance | `base/BaseButton.module.css` |
-| Import instructions and limits wording | `import/ImportInstructions.tsx` |
-| File picker | `import/FilePicker.tsx` and its stylesheet |
-| Filename and worksheet selector | `import/WorksheetPicker.tsx` and its stylesheet |
-| Workbook preview | `import/ColumnPreview.tsx` and `import/WorkbookPreviewTable.tsx` |
-| Mapping layout and instructions | `import/MappingSection.tsx` and its stylesheet |
-| Each mapping field and approval controls | `import/MappingField.tsx` and its stylesheet |
-| Process button wording | `import/ProcessButton.tsx` |
-| Job status and counts | `jobs/JobSummary.tsx` |
-| Results filter and pagination | `jobs/ResultsFilter.tsx`, `jobs/ResultsPagination.tsx`, and their stylesheets |
-| Result columns and cells | `jobs/ResultsTable.tsx` and `jobs/ResultTableRow.tsx` |
-| Expandable row details | `jobs/RowDetails.tsx`, `jobs/NormalizedInputs.tsx`, `jobs/NaicsDetails.tsx`, and `jobs/ScoreDetails.tsx` |
-| Issue explanations | `jobs/IssueList.tsx` |
-| Shared colors, spacing, and sizes | `src/theme.css` |
+| What you want to change                  | Where to edit                                                                                            |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Page section order                       | `src/App.tsx` and `import/ImportScreen.tsx`                                                              |
+| Page title                               | `layout/PageHeader.tsx`                                                                                  |
+| Shared page-heading appearance (`h1`)    | `base/BaseHeader.module.css`                                                                             |
+| Shared section-heading appearance (`h2`) | `base/BaseSubheader.module.css`                                                                          |
+| Detail headings (`h3`)                   | `base/BaseDetailHeader.tsx`; add an adjacent stylesheet when needed                                      |
+| Shared button appearance                 | `base/BaseButton.module.css`                                                                             |
+| Import instructions and limits wording   | `import/ImportInstructions.tsx`                                                                          |
+| File picker                              | `import/FilePicker.tsx` and its stylesheet                                                               |
+| Filename and worksheet selector          | `import/WorksheetPicker.tsx` and its stylesheet                                                          |
+| Workbook preview                         | `import/ColumnPreview.tsx` and `import/WorkbookPreviewTable.tsx`                                         |
+| Mapping layout and instructions          | `import/MappingSection.tsx` and its stylesheet                                                           |
+| Each mapping field and approval controls | `import/MappingField.tsx` and its stylesheet                                                             |
+| Process button wording                   | `import/ProcessButton.tsx`                                                                               |
+| Job status and counts                    | `jobs/JobSummary.tsx`                                                                                    |
+| Results filter and pagination            | `jobs/ResultsFilter.tsx`, `jobs/ResultsPagination.tsx`, and their stylesheets                            |
+| Result columns and cells                 | `jobs/ResultsTable.tsx` and `jobs/ResultTableRow.tsx`                                                    |
+| Expandable row details                   | `jobs/RowDetails.tsx`, `jobs/NormalizedInputs.tsx`, `jobs/NaicsDetails.tsx`, and `jobs/ScoreDetails.tsx` |
+| Issue explanations                       | `jobs/IssueList.tsx`                                                                                     |
+| Shared colors, spacing, and sizes        | `src/theme.css`                                                                                          |
 
 Paths without `src/` in this table are relative to this directory.
 Schema field labels and import limits come from the backend; changing the UI
@@ -82,11 +82,15 @@ attributes, and caller classes. Buttons also accept `variant="primary"`.
 
 ```tsx
 // Save as components/import/ReviewButton.tsx.
-import { BaseButton } from '../base/BaseButton';
-import type { BaseButtonProps } from '../base/BaseButton';
+import { BaseButton } from "../base/BaseButton";
+import type { BaseButtonProps } from "../base/BaseButton";
 
 export function ReviewButton(props: BaseButtonProps) {
-  return <BaseButton variant="primary" {...props}>Review mappings</BaseButton>;
+  return (
+    <BaseButton variant="primary" {...props}>
+      Review mappings
+    </BaseButton>
+  );
 }
 ```
 
@@ -111,13 +115,13 @@ to place the preview after the mapping controls.
 
 Workflow state and requests live in `src/hooks`:
 
-| Hook | Responsibility |
-| --- | --- |
-| `useSchema` | Column definitions and connection retry |
-| `useImport` | Workbook reading, worksheet changes, mappings, approval, and job creation |
-| `useJobProgress` | Two-second polling, terminal states, and status retry |
-| `useJobResults` | Result fetching, filters, pagination, and retry |
-| `useLatestTask` | Ignore stale asynchronous results and errors |
+| Hook             | Responsibility                                                            |
+| ---------------- | ------------------------------------------------------------------------- |
+| `useSchema`      | Column definitions and connection retry                                   |
+| `useImport`      | Workbook reading, worksheet changes, mappings, approval, and job creation |
+| `useJobProgress` | Two-second polling, terminal states, and status retry                     |
+| `useJobResults`  | Result fetching, filters, pagination, and retry                           |
+| `useLatestTask`  | Ignore stale asynchronous results and errors                              |
 
 Components receive data and callbacks from these hooks. ExcelJS workbook
 objects stay inside the import hook; the worksheet picker receives only a
@@ -125,7 +129,9 @@ filename, choices, selected ID, and selection callback.
 
 ## Check your changes
 
-Run `npm run typecheck`, `npm run test:coverage`, and `npm run build`.
+Run `npm run lint`, `npm run format:check`, `npm run typecheck`,
+`npm run test:coverage`, and `npm run build`. Use `npm run lint:fix` and
+`npm run format` to apply available lint fixes and consistent formatting.
 Tests enforce one component per script and one base file per HTML element type,
 and cover native props and the complete import/results workflow.
 

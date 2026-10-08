@@ -25,10 +25,10 @@ import {
 } from "./test/fixtures";
 import type { Schema, Suggestion } from "./types";
 
-let fetch: ReturnType<typeof vi.fn>;
+let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>;
 let read: MockInstance<typeof excel.readWorkbook>;
 beforeEach(() => {
-  fetch = vi.fn();
+  fetch = vi.fn<typeof globalThis.fetch>();
   vi.stubGlobal("fetch", fetch);
   read = vi.spyOn(excel, "readWorkbook").mockResolvedValue(workbook());
 });
@@ -53,10 +53,10 @@ async function start(
   fetch
     .mockResolvedValueOnce(response(config))
     .mockResolvedValueOnce(response({ suggestions: matches }))
-    .mockImplementation((url: string) =>
+    .mockImplementation((url) =>
       Promise.resolve(
         response(
-          url.includes("/rows?")
+          typeof url === "string" && url.includes("/rows?")
             ? {
                 job_id: completedJob.job_id,
                 offset: 0,
@@ -108,8 +108,11 @@ describe("import interface", () => {
     await userEvent.click(screen.getByRole("button", { name: "Process data" }));
     expect(screen.getByRole("button", { name: "Process data" })).toBeDisabled();
     expect(screen.getByLabelText("First Name")).toBeDisabled();
-    const form = fetch.mock.calls[2][1].body as FormData;
-    const payload = JSON.parse(form.get("metadata") as string);
+    const form = fetch.mock.calls[2][1]?.body as FormData;
+    const payload = JSON.parse(form.get("metadata") as string) as {
+      sheet_name: string;
+      confirmedFields: string[];
+    };
     expect(fetch.mock.calls[2][0]).toBe("/api/v1/jobs");
     expect((form.get("file") as File).name).toBe("contacts.xlsx");
     expect(payload.sheet_name).toBe("Contacts");
@@ -140,7 +143,11 @@ describe("import interface", () => {
     await userEvent.click(screen.getByRole("button", { name: "Process data" }));
     expect(await screen.findByText("Batch processing")).toBeInTheDocument();
     expect(
-      JSON.parse(fetch.mock.calls[2][1].body.get("metadata")).confirmedFields,
+      (
+        JSON.parse(
+          (fetch.mock.calls[2][1]?.body as FormData).get("metadata") as string,
+        ) as { confirmedFields: string[] }
+      ).confirmedFields,
     ).toEqual(["email"]);
   });
 
@@ -245,7 +252,11 @@ describe("import interface", () => {
     await userEvent.click(screen.getByRole("button", { name: "Process data" }));
     await screen.findByText("Batch processing");
     expect(
-      JSON.parse(fetch.mock.calls[2][1].body.get("metadata")).confirmedFields,
+      (
+        JSON.parse(
+          (fetch.mock.calls[2][1]?.body as FormData).get("metadata") as string,
+        ) as { confirmedFields: string[] }
+      ).confirmedFields,
     ).toEqual(["email"]);
   });
 

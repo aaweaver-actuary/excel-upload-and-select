@@ -18,7 +18,7 @@ export function NormalizedInputs({
         </BaseParagraph>
       ) : (
         <DefinitionList
-          items={Object.entries(account).map(([field, value]) => ({
+          items={Object.entries({ ...account }).map(([field, value]) => ({
             key: field,
             label: readable(field),
             value: display(value),

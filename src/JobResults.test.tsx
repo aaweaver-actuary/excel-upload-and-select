@@ -11,9 +11,9 @@ import { JobResults } from "./components/jobs/JobResults";
 import type { BatchJob, JobRows, RowResult } from "./types";
 import { completedJob, deferred, response } from "./test/fixtures";
 
-let fetch: ReturnType<typeof vi.fn>;
+let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>;
 beforeEach(() => {
-  fetch = vi.fn();
+  fetch = vi.fn<typeof globalThis.fetch>();
   vi.stubGlobal("fetch", fetch);
 });
 afterEach(() => {
@@ -210,6 +210,38 @@ it("shows loading and retries a failed result request without processing again",
   expect(fetch).toHaveBeenCalledTimes(2);
 });
 
+it("shows loading when returning to a previous filter while another request is pending", async () => {
+  const oldFilter = deferred<Response>();
+  const newRequest = deferred<Response>();
+  fetch
+    .mockResolvedValueOnce(response(page()))
+    .mockReturnValueOnce(oldFilter.promise)
+    .mockReturnValueOnce(newRequest.promise);
+  await show();
+  expect(screen.getByText("Details for row 2")).toBeInTheDocument();
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Row status"), {
+      target: { value: "invalid" },
+    });
+  });
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Row status"), {
+      target: { value: "" },
+    });
+  });
+  expect(screen.getByText("Loading results…")).toBeInTheDocument();
+  expect(screen.queryByText("Details for row 2")).not.toBeInTheDocument();
+  await act(async () => {
+    oldFilter.resolve(response(page([row({ source_row_number: 8 })])));
+  });
+  expect(screen.getByText("Loading results…")).toBeInTheDocument();
+  await act(async () => {
+    newRequest.resolve(response(page([row({ source_row_number: 9 })])));
+  });
+  expect(screen.getByText("Details for row 9")).toBeInTheDocument();
+  expect(screen.queryByText("Details for row 8")).not.toBeInTheDocument();
+});
+
 it.each(["resolve", "reject"])(
   "ignores stale %s requests when changing job or filter",
   async (action) => {
@@ -265,6 +297,8 @@ it.each(["resolve", "reject"])(
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
     });
+    expect(screen.getByText("Loading results…")).toBeInTheDocument();
+    expect(screen.queryByText("Details for row 2")).not.toBeInTheDocument();
     view.unmount();
     await act(async () => {
       if (action === "resolve") pending.resolve(response(page()));

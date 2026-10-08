@@ -8,15 +8,14 @@ export function ProcessingVersions({
 }: {
   versions: NonNullable<BatchJob["versions"]>;
 }) {
+  const { scorers, ...processingVersions } = versions;
   const items = [
-    ...Object.entries(versions)
-      .filter(([key]) => key !== "scorers")
-      .map(([key, value]) => ({
-        key: `version-${key}`,
-        label: readable(key),
-        value: String(value),
-      })),
-    ...Object.entries(versions.scorers).map(([name, version]) => ({
+    ...Object.entries(processingVersions).map(([key, value]) => ({
+      key: `version-${key}`,
+      label: readable(key),
+      value,
+    })),
+    ...Object.entries(scorers).map(([name, version]) => ({
       key: `scorer-${name}`,
       label: name,
       value: version,

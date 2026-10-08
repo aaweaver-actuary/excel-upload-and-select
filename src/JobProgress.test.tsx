@@ -9,9 +9,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { JobProgress } from "./components/jobs/JobProgress";
 import { completedJob, deferred, response } from "./test/fixtures";
 
-let fetch: ReturnType<typeof vi.fn>;
+let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>;
 beforeEach(() => {
-  fetch = vi.fn();
+  fetch = vi.fn<typeof globalThis.fetch>();
   vi.stubGlobal("fetch", fetch);
   vi.useFakeTimers();
 });

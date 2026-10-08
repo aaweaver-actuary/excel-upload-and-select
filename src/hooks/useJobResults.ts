@@ -5,25 +5,39 @@ import type { BatchJob, JobRows, RowStatus } from "../types";
 export function useJobResults(job: BatchJob) {
   const [status, setStatus] = useState<RowStatus | "">("");
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<JobRows | null>(null);
-  const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [response, setResponse] = useState<{
+    requestKey: string;
+    data: JobRows | null;
+    error: string;
+  } | null>(null);
+  const requestKey = JSON.stringify([job.job_id, offset, status, retry]);
+  const [selectionKey, setSelectionKey] = useState(requestKey);
+  if (selectionKey !== requestKey) {
+    // Reset during render so returning to an earlier selection cannot reuse its
+    // old response while the new request is pending.
+    setSelectionKey(requestKey);
+    setResponse(null);
+  }
+  // Hide results from a previous request as soon as the selection changes.
+  const current = response?.requestKey === requestKey ? response : null;
+  const data = current?.data ?? null;
+  const error = current?.error ?? "";
 
   useEffect(() => {
     let active = true;
-    setData(null);
-    setError("");
     void getJobRows(job.job_id, offset, status)
       .then((result) => {
-        if (active) setData(result);
+        if (active) setResponse({ requestKey, data: result, error: "" });
       })
-      .catch((failure) => {
-        if (active) setError(errorMessage(failure));
+      .catch((failure: unknown) => {
+        if (active)
+          setResponse({ requestKey, data: null, error: errorMessage(failure) });
       });
     return () => {
       active = false;
     };
-  }, [job.job_id, offset, status, retry]);
+  }, [job.job_id, offset, status, requestKey]);
 
   const scorerNames = [
     ...new Set([

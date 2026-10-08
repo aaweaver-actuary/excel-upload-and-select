@@ -47,6 +47,7 @@ The original project had a synchronous JSON preview API, React/ExcelJS parsing, 
 - `workbooks.py` owns ingestion, independent mapping validation, canonical construction, source alignment checks, and XLSX output.
 - `pipeline.py` executes ingestion → validation → enrichment → reference lookup/features → scoring → output. Raw workbook data, canonical accounts, and results remain distinct.
 - `enrichment.py` defines provider-owned identities/results and NAICS resolution. Implement an approved vendor adapter behind `NaicsProvider`; convert transient failures into `ProviderFailure` with retryability and optional Retry-After seconds. The resolver supplies explicit deadlines, finite retries with jitter, bounded concurrency, within-job deduplication, cross-job TTL caching, and durable provenance. Authentication/not-found/ambiguous outcomes must not be retried as transient failures.
+- [The Neural Metrics client](backend/app/src/naics_code/README.md) provides standalone synchronous and asynchronous lookups, session reuse, bounded result streaming, and explicit found/miss/pending/error outcomes. Supply a response extractor using the vendor response models. Workbook-provider integration and R6 calls remain separate extension points.
 - Inject an approved full code set and version through `NaicsReference`. Reference memberships are never inferred from six-digit syntax alone. Provider/configuration and reference versions participate in cache keys.
 - `scoring.py` provides reference lookup, feature construction, and independent batch scorers. Each scorer declares name/version/required fields and returns results keyed by source row number. Malformed outputs and exceptions are contained; another scorer can still succeed. No model logic belongs in routes or Excel.
 
@@ -64,17 +65,17 @@ Inputs are stored by generated job ID, never by user filenames. Files are writte
 
 ## API
 
-| Endpoint | Behavior |
-| --- | --- |
-| `GET /api/health` | Existing liveness convention. |
-| `GET /api/ready` | Database, writable artifact volume, and recent active-worker heartbeat; 503 when unavailable. |
-| `GET /api/schema` | Canonical mapping fields and public import settings. |
-| `POST /api/match-columns` | Existing `{columns: [{id, label}]}` suggestion contract for canonical fields. |
-| `POST /api/v1/jobs` | Multipart `file` plus JSON string `metadata`; returns 202 and job ID. |
-| `GET /api/v1/jobs/{id}` | Status, stage, counters, timestamps, versions, metrics, and sanitized fatal error. |
-| `GET /api/v1/jobs/{id}/rows` | Completed-job JSON results, ordered by physical source row. Query: `offset` (default 0), `limit` (default 50, 1–200), optional `status` matching a row status. Returns `{job_id, offset, limit, total, rows}`; `total` is the filtered count. Each row includes `source_row_number`, `status`, `issues`, `naics`, `scores`, and nullable `canonical_account`. Returns 409 before completion or for failed jobs, 404 for unknown jobs, and 422 for invalid queries. |
-| `GET /api/v1/jobs/{id}/result` | XLSX for completed jobs; 409 when not ready/failed, 404 when unknown. |
-| `POST /api/process` | Retained synchronous JSON contact-preview contract; no persistence or batch enrichment. |
+| Endpoint                       | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/health`              | Existing liveness convention.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `GET /api/ready`               | Database, writable artifact volume, and recent active-worker heartbeat; 503 when unavailable.                                                                                                                                                                                                                                                                                                                                                                      |
+| `GET /api/schema`              | Canonical mapping fields and public import settings.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `POST /api/match-columns`      | Existing `{columns: [{id, label}]}` suggestion contract for canonical fields.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `POST /api/v1/jobs`            | Multipart `file` plus JSON string `metadata`; returns 202 and job ID.                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GET /api/v1/jobs/{id}`        | Status, stage, counters, timestamps, versions, metrics, and sanitized fatal error.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /api/v1/jobs/{id}/rows`   | Completed-job JSON results, ordered by physical source row. Query: `offset` (default 0), `limit` (default 50, 1–200), optional `status` matching a row status. Returns `{job_id, offset, limit, total, rows}`; `total` is the filtered count. Each row includes `source_row_number`, `status`, `issues`, `naics`, `scores`, and nullable `canonical_account`. Returns 409 before completion or for failed jobs, 404 for unknown jobs, and 422 for invalid queries. |
+| `GET /api/v1/jobs/{id}/result` | XLSX for completed jobs; 409 when not ready/failed, 404 when unknown.                                                                                                                                                                                                                                                                                                                                                                                              |
+| `POST /api/process`            | Retained synchronous JSON contact-preview contract; no persistence or batch enrichment.                                                                                                                                                                                                                                                                                                                                                                            |
 
 Job metadata retains the frontend's destination-to-source mapping direction:
 
@@ -132,12 +133,32 @@ Run API and worker in separate terminals from `backend/` with the same `JOB_ARTI
 Run `npm run dev` from the project root. Vite proxies `/api` to port 8000.
 
 ```sh
+npm run lint
+npm run format:check
 npm run typecheck
 npm run test:coverage
 npm run build
 cd backend
 ../.venv/bin/python -m pytest
 ```
+
+Use `npm run lint:fix` for available automatic lint fixes and `npm run format`
+to apply Prettier's default formatting. ESLint checks frontend code, tests, and
+configuration with recommended type-aware TypeScript, React Hooks, React Refresh,
+and JSX accessibility rules. CI rejects lint warnings and formatting differences.
+Formatting covers frontend files and their configuration/documentation; generated
+output and backend files are excluded. Prettier owns formatting, with
+`eslint-config-prettier` preventing conflicting lint rules.
+ESLint remains on major version 9 to match `eslint-plugin-jsx-a11y`'s supported
+peer dependency range; upgrade them together when the plugin supports ESLint 10.
+
+Accessibility checks recognize the base components as their native elements.
+Their heading/link children and label association props are forwarded explicitly;
+the native-props and workflow tests verify rendered accessible names and labels.
+Async test callbacks are exempt from `require-await` because React's async `act`
+flushes pending work even when a callback has no `await`. Two intentional non-Error
+throws have local exceptions to test fallback error handling; production checks
+remain enabled.
 
 Both application suites retain 100% coverage thresholds. Tests use real XLSX parsing/output, actual SQLite and filesystem storage, fake providers/scorers, the six-row acceptance scenario, and a 5,000-row alignment scenario with distinct scores. They cover provider deadlines/retries, deduplication, cache expiry, partial scoring, worker exclusion/recovery, retention, invalid workbook/mapping/error contracts, and asynchronous UI polling/stale responses. No live vendor is called.
 

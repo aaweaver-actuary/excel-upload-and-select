@@ -17,7 +17,7 @@ export function errorMessage(error: unknown): string {
 }
 
 async function readResponse<T>(response: Response): Promise<T> {
-  let data;
+  let data: unknown;
   try {
     data = await response.json();
   } catch {
@@ -26,11 +26,15 @@ async function readResponse<T>(response: Response): Promise<T> {
     );
   }
   if (!response.ok) {
+    const failure = data as {
+      error?: { message?: unknown };
+      detail?: unknown;
+    } | null;
     throw new Error(
-      typeof data.error?.message === "string"
-        ? data.error.message
-        : typeof data.detail === "string"
-          ? data.detail
+      typeof failure?.error?.message === "string"
+        ? failure.error.message
+        : typeof failure?.detail === "string"
+          ? failure.detail
           : `The request failed (${response.status}). Check your import and try again.`,
     );
   }

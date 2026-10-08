@@ -1,240 +1,204 @@
-"""Recreation of a current process to submit company name and address to Neural Metrics API to retrieve NAICS code.
-This script is intended for use in a Python environment with access to the necessary libraries and credentials.
+"""Reusable NM connections; response interpretation belongs to the injected extractor."""
 
-Neural Metrics API requires an API key and a PEM file for secure communication.
-The API key should be stored in an environment variable named `NEURALMETRICS_API_KEY`,
-and the PEM file path should be specified in the `PEM_PATH` variable.
-"""
+from __future__ import annotations
 
-from hashlib import sha256
-import json
-import pandas as pd
+import asyncio
+from collections.abc import AsyncIterator, Callable, Iterable, Iterator
+import math
+import ssl
+import threading
+from typing import Any, Self
+
 import httpx
-from datetime import datetime, date
-from pathlib import Path
-from dataclasses import dataclass, field
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from ..models import NmApiDetails, NmClassification, NmLookupResult, NmSessionResponse, Submission
 
+SESSION_ENDPOINT = "https://api.smartratio.neuralmetrics.ai/smb/api/v1/getSession"
+SUBMISSION_ENDPOINT = "https://api.smartratio.neuralmetrics.ai/smb/api/v2/company/submit/batch"
 
-def get_neural_metrics_naics_code(name: str, address: str) -> int:
-    """Returns the NAICS code for the company based on its name and address."""
-    # Placeholder implementation; replace with actual logic to retrieve NAICS code
-    return 123456
+ResponseExtractor = Callable[[Any, Submission], NmClassification]
 
 
-def ts() -> str:
-    """Returns a string representing the current date in the format MMDDYYYY."""
-    now = datetime.now()
-    return f"{now.month}{now.day}{now.year}"
+def _client_options(details: NmApiDetails, timeout: float) -> dict[str, Any]:
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("timeout must be finite and positive.")
+    verify = ssl.create_default_context(cafile=str(details.pem_path)) if details.pem_path else True
+    return {"verify": verify, "timeout": timeout}
 
 
-def get_book(name: str) -> pd.DataFrame:
-    INPUT_FOLDER = Path(
-        r"O:\\PARM\\Small Business\\Causey\\Third party data\\Refresh\\relativity6\\one_off\\input"
-    )
-    input_filename = name + "_In.xlsx"
-    return pd.read_excel(INPUT_FOLDER / input_filename, dtype=str).fillna("")
+def _session_headers(details: NmApiDetails) -> dict[str, str]:
+    return {"Authorization": f"Key {details.key.get_secret_value()}", "Content-Type": "application/json"}
 
 
-@dataclass(slots=True)
-class NmApiDetails:
-    """Represents the details required to connect to the Neural Metrics API. This class holds the API key and the path to the PEM file for secure communication."""
-
-    key: str = os.getenv("NEURALMETRICS_API_KEY", "")
-    pem_path: Path = Path(os.getenv("PEM_PATH", ""))
+def _submission_headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Session {token}", "Content-Type": "application/json", "RequestSource": "API"}
 
 
-@dataclass(slots=True)
-class NmSession:
-    """Represents a session with the Neural Metrics API. This class handles the connection to the API and manages the session token."""
-
-    is_async: bool = False
-
-    _api_detail: NmApiDetails = field(default_factory=NmApiDetails)
-
-    _endpoint: str = "https://api.smartratio.neuralmetrics.ai/smb/api/v1/getSession"
-
-    _session: httpx.Client | httpx.AsyncClient | None = None
-    _session_token: str | None = None
-
-    @property
-    def headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Key {self._api_detail.key}",
-            "Content-Type": "application/json",
-        }
-
-    @property
-    def is_connected(self) -> bool:
-        return self._session_token is not None
-
-    @property
-    def session(self) -> httpx.Client | httpx.AsyncClient:
-        if self._session is None:
-            self.connect()
-        return self._session
-
-    def connect(self) -> None:
-        """Establishes a connection to the Neural Metrics API and retrieves a session token."""
-        if self.is_async:
-            self._session = httpx.AsyncClient()
-        else:
-            self._session = httpx.Client()
-
-        response = self._session.post(
-            url=self._endpoint, headers=self.headers, verify=self._api_detail.pem_path
-        )
-        response.raise_for_status()
-        self._session_token = response.json().get("sessionToken")
+def _error_result(submission: Submission, error: Exception) -> NmLookupResult:
+    if isinstance(error, httpx.TimeoutException):
+        code = "NM_TIMEOUT"
+    elif isinstance(error, httpx.HTTPStatusError):
+        status = error.response.status_code
+        code = "NM_AUTH_ERROR" if status in {401, 403} else "NM_RATE_LIMIT" if status == 429 else "NM_HTTP_ERROR"
+    elif isinstance(error, httpx.RequestError):
+        code = "NM_TRANSPORT_ERROR"
+    else:
+        code = "NM_INVALID_RESPONSE"
+    return NmLookupResult(submission=submission, status="error", error_code=code)
 
 
-@dataclass
-class Submission:
-    """Represents a submission to the Neural Metrics API. This class holds the details of the company being submitted, including its name, address, and other relevant information."""
-
-    _name: str | None = None
-    _address: str | None = None
-
-    _country: str = "US"
-    _lean_crawling: bool = False
-    _force_recrawl: bool = False
-    _force_content_cache_refresh: bool = False
-    _lro_submission: bool = False
-    _property_details: bool = False
-
-    @property
-    def name(self) -> str:
-        return self._name if self._name is not None else ""
-
-    @property
-    def address(self) -> str:
-        return self._address if self._address is not None else ""
-
-    @property
-    def key(self) -> str:
-        return sha256(f"{self.name}{self.address}".encode("utf-8")).hexdigest()
-
-    @property
-    def payload(self) -> dict:
-        return {
-            "companyData": [
-                {
-                    "companyName": self.name,
-                    "companyAddress": self.address,
-                    "country": self._country,
-                    "id": self.key,
-                    "leanCrawling": self._lean_crawling,
-                    "forceRecrawl": self._force_recrawl,
-                    "forceContentCacheRefresh": self._force_content_cache_refresh,
-                    "lroSubmission": self._lro_submission,
-                    "propertyDetails": self._property_details,
-                }
-            ]
-        }
-
-
-@dataclass
-class NmBatchSubmission:
-    """Represents the details required for a batch submission to the Neural Metrics API. This class manages the session and API details."""
-
-    _session: NmSession = field(default_factory=NmSession)
-    _api_detail: NmApiDetails = field(default_factory=NmApiDetails)
-
-    _endpoint: str = (
-        "https://api.smartratio.neuralmetrics.ai/smb/api/v2/company/submit/batch"
-    )
-
-    @property
-    def session_token(self) -> str:
-        if not self._session.is_connected:
-            self._session.connect()
-        if self._session._session_token is None:
-            token = "ERR"
-        else:
-            token = self._session._session_token
-        return token
-
-    @property
-    def headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Session {self.session_token}",
-            "Content-Type": "application/json",
-            "RequestSource": "API",
-        }
-
-    def _build_submission(self, name: str | None, address: str | None) -> Submission:
-        return Submission(_name=name, _address=address)
-
-    def _submission_payload(self, name: str | None, address: str | None) -> dict:
-        submission = self._build_submission(name, address)
-        return submission.payload
-
-
-s = NmSession()
-# s.connect()
-# sessionToken = s._session_token
-# submission_head = {
-#     "Content-Type": "application/json",
-#     "Authorization": "Session " + sessionToken,
-#     "RequestSource": "API",
-# }
-details_head = {
-    "Content-Type": "application/json",
-    "Authorization": "Session " + sessionToken,
-    "RequestSource": "API",
-    "enableViolation": "true",
-}
-
-counter = 0
-
-
-# date_part = '1292026'
-
-rownum = pd.Series(range(1, len(Book) + 1), index=Book.index)
-
-# Book['Lookup'] = date_part + rownum.astype(str) + '-1'
-
-
-# Book["Address"] = (
-#     Book["Address"].fillna("")
-#     + " "
-#     + Book["City"].fillna("")
-#     + ", "
-#     + Book["State"].fillna("")
-#     + " "
-#     + Book["Zip"].fillna("")
-# ).str.strip()
-
-for index, row in Book.iterrows():
-    counter += 1
-    print(counter)
-
-    rsub = httpx.post(
-        url=NmBatchSubmission._endpoint,
-        headers=submission_head,
-        data=payload,
-        verify=s._api_detail.pem_path,
-    )
-
+def _classify(response: httpx.Response, submission: Submission, extractor: ResponseExtractor) -> NmLookupResult:
     try:
-        json.dump(
-            rsub.json(),
-            open(
-                f"O:\\PARM\\Small Business\\Causey\\Third party data\\Refresh\\neuralmetrics\\one_off\\submission_json_out\\{row['Lookup']}_submission_{date.today()}.json",
-                "w",
-            ),
-            indent=2,
-        )
+        classification = NmClassification.model_validate(extractor(response.json(), submission))
+        return NmLookupResult(submission=submission, status=classification.status, naics=classification.naics)
     except Exception:
-        json.dump(
-            {},
-            open(
-                f"O:\\PARM\\Small Business\\Causey\\Third party data\\Refresh\\neuralmetrics\\one_off\\submission_json_out\\{row['Lookup']}_submission_{date.today()}.json",
-                "w",
-            ),
-            indent=2,
-        )
-print("Done")
+        # An adapter exception is a response error, never a completed miss.
+        return NmLookupResult(submission=submission, status="error", error_code="NM_INVALID_RESPONSE")
+
+
+class NmClient:
+    """Synchronous lookups using one lazy, reusable NM session and HTTP pool."""
+
+    def __init__(self, extractor: ResponseExtractor, *, api_details: NmApiDetails | None = None,
+                 timeout: float = 10, transport: httpx.BaseTransport | None = None):
+        if not callable(extractor):
+            raise TypeError("extractor must be callable.")
+        self._extractor = extractor
+        self._details = api_details if api_details is not None else NmApiDetails()
+        self._client = httpx.Client(**_client_options(self._details, timeout), transport=transport)
+        self._token: str | None = None
+        self._generation = 0
+        self._session_lock = threading.Lock()
+
+    def __enter__(self) -> Self:
+        self._ensure_open()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
+        self._client.close()
+
+    def _ensure_open(self) -> None:
+        if self._client.is_closed:
+            raise RuntimeError("NM client is closed.")
+
+    def _session(self, rejected_generation: int | None = None) -> tuple[str, int]:
+        with self._session_lock:
+            if self._token is None or rejected_generation == self._generation:
+                response = self._client.post(SESSION_ENDPOINT, headers=_session_headers(self._details))
+                response.raise_for_status()
+                self._token = NmSessionResponse.model_validate(response.json()).session_token
+                self._generation += 1
+            return self._token, self._generation
+
+    def lookup(self, name: str, address: str = "", **options: Any) -> NmLookupResult:
+        """Look up one business; optional keyword arguments are Submission fields."""
+        return self.lookup_submission(Submission(name=name, address=address, **options))
+
+    def lookup_submission(self, submission: Submission) -> NmLookupResult:
+        """Look up an already validated submission without losing its identity."""
+        self._ensure_open()
+        try:
+            token, generation = self._session()
+            response = self._client.post(SUBMISSION_ENDPOINT, headers=_submission_headers(token), json=submission.payload)
+            if response.status_code == 401:
+                token, _ = self._session(rejected_generation=generation)
+                response = self._client.post(SUBMISSION_ENDPOINT, headers=_submission_headers(token), json=submission.payload)
+            response.raise_for_status()
+        except (httpx.HTTPError, ValueError) as error:
+            return _error_result(submission, error)
+        return _classify(response, submission, self._extractor)
+
+    def iter_lookup(self, submissions: Iterable[Submission]) -> Iterator[NmLookupResult]:
+        """Yield one result per input, sequentially, including duplicate businesses."""
+        for index, submission in enumerate(submissions):
+            yield self.lookup_submission(submission).model_copy(update={"input_index": index})
+
+
+class AsyncNmClient:
+    """Async lookups using one NM session; use an instance within one event loop."""
+
+    def __init__(self, extractor: ResponseExtractor, *, api_details: NmApiDetails | None = None,
+                 timeout: float = 10, transport: httpx.AsyncBaseTransport | None = None):
+        if not callable(extractor):
+            raise TypeError("extractor must be callable.")
+        self._extractor = extractor
+        self._details = api_details if api_details is not None else NmApiDetails()
+        self._client = httpx.AsyncClient(**_client_options(self._details, timeout), transport=transport)
+        self._token: str | None = None
+        self._generation = 0
+        self._session_lock = asyncio.Lock()
+
+    async def __aenter__(self) -> Self:
+        self._ensure_open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    def _ensure_open(self) -> None:
+        if self._client.is_closed:
+            raise RuntimeError("NM client is closed.")
+
+    async def _session(self, rejected_generation: int | None = None) -> tuple[str, int]:
+        async with self._session_lock:
+            if self._token is None or rejected_generation == self._generation:
+                response = await self._client.post(SESSION_ENDPOINT, headers=_session_headers(self._details))
+                response.raise_for_status()
+                self._token = NmSessionResponse.model_validate(response.json()).session_token
+                self._generation += 1
+            return self._token, self._generation
+
+    async def lookup(self, name: str, address: str = "", **options: Any) -> NmLookupResult:
+        return await self.lookup_submission(Submission(name=name, address=address, **options))
+
+    async def lookup_submission(self, submission: Submission) -> NmLookupResult:
+        self._ensure_open()
+        try:
+            token, generation = await self._session()
+            response = await self._client.post(SUBMISSION_ENDPOINT, headers=_submission_headers(token), json=submission.payload)
+            if response.status_code == 401:
+                token, _ = await self._session(rejected_generation=generation)
+                response = await self._client.post(SUBMISSION_ENDPOINT, headers=_submission_headers(token), json=submission.payload)
+            response.raise_for_status()
+        except (httpx.HTTPError, ValueError) as error:
+            return _error_result(submission, error)
+        return _classify(response, submission, self._extractor)
+
+    async def iter_lookup(self, submissions: Iterable[Submission], *, concurrency: int = 8) -> AsyncIterator[NmLookupResult]:
+        """Yield results as requests finish, keeping at most concurrency tasks alive.
+
+        Close this iterator (or use contextlib.aclosing) when stopping early.
+        """
+        if isinstance(concurrency, bool) or not isinstance(concurrency, int) or concurrency <= 0:
+            raise ValueError("concurrency must be a positive integer.")
+        self._ensure_open()
+        inputs = iter(enumerate(submissions))
+        pending: dict[asyncio.Task[NmLookupResult], int] = {}
+
+        def fill() -> None:
+            while len(pending) < concurrency:
+                item = next(inputs, None)
+                if item is None:
+                    break
+                index, submission = item
+                pending[asyncio.create_task(self.lookup_submission(submission))] = index
+
+        try:
+            fill()
+            while pending:
+                done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    index = pending.pop(task)
+                    result = task.result().model_copy(update={"input_index": index})
+                    fill()
+                    yield result
+        finally:
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)

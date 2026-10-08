@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage } from "../api";
 
 type Commit = (action: () => void) => void;
@@ -14,21 +14,24 @@ export function useLatestTask() {
     [],
   );
 
-  async function run(operation: (commit: Commit) => Promise<void>) {
-    const ticket = ++generation.current;
-    setBusy(true);
-    setError("");
-    const commit: Commit = (action) => {
-      if (ticket === generation.current) action();
-    };
-    try {
-      await operation(commit);
-    } catch (failure) {
-      commit(() => setError(errorMessage(failure)));
-    } finally {
-      commit(() => setBusy(false));
-    }
-  }
+  const run = useCallback(
+    async (operation: (commit: Commit) => Promise<void>) => {
+      const ticket = ++generation.current;
+      setBusy(true);
+      setError("");
+      const commit: Commit = (action) => {
+        if (ticket === generation.current) action();
+      };
+      try {
+        await operation(commit);
+      } catch (failure) {
+        commit(() => setError(errorMessage(failure)));
+      } finally {
+        commit(() => setBusy(false));
+      }
+    },
+    [],
+  );
 
   return { busy, error, run, clearError: () => setError("") };
 }
